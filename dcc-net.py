@@ -9,12 +9,16 @@ import threading
 # -*- coding: ascii -*-
 
 ###############################################################################
-def decode16 (str_input):
-	pass
+def decode16 (b_input):
+	#print("#debug in DECODE: ", b_input)
+	data = codecs.decode(b_input, 'hex')
+	return list(data.decode())
 
 ###############################################################################
 def encode16 (b_input):
-	pass	
+	#print("#debug in ENCODE: ", b_input)
+	data = "".join(i for i in b_input)
+	return codecs.encode(data.encode('ascii'),'hex')	
 
 ###############################################################################
 def carry_around_add(a, b):
@@ -54,15 +58,22 @@ if __name__ == "__main__":
 	file_OUT	= open(args[4],"wb")
 
 	#read input
-	data = []
+
 	read_count 	= 0
 	b_in 		= file_IN.read(1)
-	print(b_in)
+	data = []
 	while ( b_in):
+		data.append(b_in.decode())
 		read_count += 1
 		b_in = file_IN.read(1)
-		print(b_in)
 		
+		
+	print ("FILE DATA: \n", data, "\n")
+	print ("ENCODED DATA: \n", encode16(data), "\n")
+	data = encode16(data)
+	print ("DECODED DATA: \n", decode16(data), "\n")
+
+
 
 	file_IN.close()
 	file_OUT.close()
