@@ -9,7 +9,7 @@ import binascii
 
 # -*- coding: ascii -*-
 
-my_id = '\x00'
+my_id = '\x01'
 
 def id_generator():
 	global my_id
@@ -35,28 +35,25 @@ def encode16 (b_input):
 ###############################################################################
 def carry_around_add(a, b):
 	c = a + b
-	return(c &0xffff)+(c >>16)
+	return(c &0xFFFF)+(c >>16)
 
 ###############################################################################
 def checksum(msg):
 	if(len(msg)%2 == 1):
 		msg.append('\x00')
-
-	str_msg = "".join(i for i in msg)
-	msg = str.encode(str_msg)
+	
 	s =0
 	for i in range(0, len(msg),2):
-		w = (msg[i]) + ((msg[1])<<8)
+		w = ord(msg[i+1]) + (ord(msg[i])<<8)
 		s = carry_around_add(s, w)
-	return~s &0xffff
+		#print(s)
+	return ~s & 0xFFFF
 
 ###############################################################################
 def create_frame(data,length,ID,flag):
-	sync = "\xDC\xC0\x23\xC2"
+	sync = "\xdc\xc0\x23\xc2"
 	frame = []
-	#str_length = str(length)
-	#str_length = ((2 - len(str_length))*"\0")+str_length # length must be a 2 bytes number
-	print(length.decode('latin-1'))
+	
 	#Frame without checksum
 	for field in [sync,sync,length.decode('latin-1'),'\x00\x00',ID,flag]:
 		for c in field:
@@ -64,14 +61,8 @@ def create_frame(data,length,ID,flag):
 	for c in data:
 		frame.append(c)
 
-	# Fixes the error when the length of the frame is odd by appending NULL char at the end of the frame
-	#if(len(frame)%2 == 1):
-	#	frame.append('\x00')
-
-	chksum = checksum(frame) # Calculates checksum
-	print("checksum =", chksum, struct.pack('!H', chksum))
-
-	chksum = struct.pack('!H', chksum).decode('latin-1')
+	# Calculates checksum
+	chksum = struct.pack('!H', checksum(frame)).decode('latin-1')
 
 	# Rebuilds the frame including the checksum
 	frame = []
@@ -81,9 +72,6 @@ def create_frame(data,length,ID,flag):
 	for c in data:
 		frame.append(c)
 
-	# Fixes the error when the length of the frame is odd by appending NULL char at the end of the frame
-	if(len(frame)%2 == 1):
-		frame.append('\x00')
 	return frame
 
 ###############################################################################
@@ -146,7 +134,7 @@ def start_node():
 		data_set[n_packs].append(b_in.decode())
 		count_len += 1
 		b_in = file_IN.read(1)
-		if count_len == 65533:
+		if count_len == 65535:
 			count_len = 0
 			n_packs += 1
 			data_set.append([])
@@ -158,13 +146,14 @@ def start_node():
 	
 	#create the protocol's frames
 	for data in data_set:
-		print("len = ", len(data), struct.pack('!H', len(data)))
+		#print("len = ", len(data), struct.pack('!H', len(data)))
 		frame = create_frame(data,struct.pack('!H', len(data)),id_generator(),'\x00')
-		print ("FRAME: \n", frame, "\n\n")
+
+		#print ("FRAME: \n", frame, "\n\n")
 	
 		#encode the frame
 		frame = encode16(frame)
-		print ("ENCODED FRAME: \n", frame, "\n\n")
+		#print ("ENCODED FRAME: \n", frame, "\n\n")
 	
 		#print ("DECODED FRAME: \n", decode16(frame), "\n\n")
 		frame = decode16(frame)
