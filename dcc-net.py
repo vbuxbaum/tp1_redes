@@ -19,6 +19,13 @@ def id_generator():
 		my_id = '\x01'
 	return my_id
 
+###############################################################################	
+def bytes_to_int(b):
+    return int(binascii.hexlify(''.join(i for i in b).encode('latin-1')), 16)
+
+###############################################################################	
+def list_to_str(b):
+    return ''.join(i for i in b)
 
 ###############################################################################
 def decode16 (b_input):
@@ -46,7 +53,6 @@ def checksum(msg):
 	for i in range(0, len(msg),2):
 		w = ord(msg[i+1]) + (ord(msg[i])<<8)
 		s = carry_around_add(s, w)
-		#print(s)
 	return ~s & 0xFFFF
 
 ###############################################################################
@@ -75,8 +81,60 @@ def create_frame(data,length,ID,flag):
 	return frame
 
 ###############################################################################
+# Returns the beginning of a new frame. -1 if sync not found
+def find_sync(msg):
+	length = len(msg)
+	for i in range(0,length - 4):	
+		sync = msg[i:i+4]
+		j = i + 4
+		if(msg[j:j+4] == sync):
+			return i
+	return -1
+
+###############################################################################
 def get_data_from_frame(frame):
 	return frame[14:]
+
+###############################################################################
+def receive_frame(msg):
+	try:
+		#Finds the beginning of a frame, in case there was some transmission problem 
+		frame_begin = find_sync(msg)
+		if(frame_begin == -1):
+			print("ERROR RECEIVING FRAME") #Didn't find the beginning of the frame
+			return -1
+		frame = msg[frame_begin:] # Frame transmitted
+		orig_chksum = frame[10:12] #received checksum
+		# Get infos of the frame
+		sync1 = frame[0:4]
+		sync2 = frame[4:8]
+		length = frame[8:10]
+		chksum = '\x00\x00'
+		ID = frame[12]
+		flag = frame[13]
+		data = frame[14:14+bytes_to_int(length)]
+		if(''.join(i for i in length) == '\x00\x00' and flag == '\x80'): # Frame received is a ACK
+			#needs to check if ID is the same as the one saved by the system
+			print("ACK RECEIVED")
+			return 1
+		else: # Frame received is a regular frame
+			frame = []
+			
+			#Frame without checksum
+			for field in [sync1,sync2,length,chksum,ID,flag]:
+				for c in field:
+					frame.append(c)
+			for c in data:
+				frame.append(c)
+
+			if (struct.pack('!H', checksum(frame)).decode('latin-1') == ''.join(i for i in orig_chksum)):
+				return 1
+			else:
+				print("ERROR RECEIVING FRAME 2")
+				return -1
+	except:
+		print("ERROR RECEIVING FRAME 3")
+		return -1
 
 ###############################################################################
 def work(sckt):
@@ -138,39 +196,34 @@ def start_node():
 			count_len = 0
 			n_packs += 1
 			data_set.append([])
-		
-	#print ("FILE DATA: \n", data_set, "\n\n")
-
-
-	flag = '\x00'
-	
+			
 	#create the protocol's frames
 	for data in data_set:
-		#print("len = ", len(data), struct.pack('!H', len(data)))
-		frame = create_frame(data,struct.pack('!H', len(data)),id_generator(),'\x00')
+		frame = create_frame(data,struct.pack('!H', len(data)),id_generator(),'\x00')	
 
-		#print ("FRAME: \n", frame, "\n\n")
-	
 		#encode the frame
 		frame = encode16(frame)
-		#print ("ENCODED FRAME: \n", frame, "\n\n")
-	
-		#print ("DECODED FRAME: \n", decode16(frame), "\n\n")
-		frame = decode16(frame)
-	
-		data = get_data_from_frame(frame)
-		#print ("DECODED DATA: \n", data, "\n")
+
+		######(Send frame)########
+
+	############################################################
+		######(Receive frame)#######
 
 
-
-
+		#dcc023c2dcc023c2........
+		msg = decode16(frame)
+		#if (receive_frame(list('\xdc\xc0\x23\xc2\xdc\xc0\x23\xc2\x00\x00\x00\x00\x00\x80')) == 1):  Test ACK
+		if (receive_frame(msg) == 1):
+			data = get_data_from_frame(msg)
+			#write data
+			#send ack
+		
+		print ("DECODED DATA: \n", list_to_str(data), "\n")
 
 
 
 	file_IN.close()
 	file_OUT.close()
-
-
 
 
 server_thread = []
